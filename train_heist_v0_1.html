@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Train Heist v0.1</title>
+<style>
+body{margin:0;overflow:hidden;background:#111;font-family:sans-serif;color:white}
+canvas{display:block}
+#ui{position:fixed;top:10px;left:10px;font-size:18px}
+#msg{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);display:none;
+background:rgba(0,0,0,.85);padding:20px;border:1px solid #666}
+button{padding:10px 16px;font-size:18px}
+</style>
+</head>
+<body>
+<div id="ui">Car: <span id="car">1</span>/4 | HP: <span id="hp">100</span></div>
+<div id="msg"></div>
+<canvas id="game"></canvas>
+
+<script>
+const c=document.getElementById("game"),ctx=c.getContext("2d");
+function resize(){c.width=innerWidth;c.height=innerHeight} resize();
+addEventListener("resize",resize);
+
+const player={x:120,y:250,w:26,h:26,hp:100,speed:3};
+let enemies=[],car=1,maxCars=4,attacking=false,gameOver=false;
+let joy={active:false,sx:0,sy:0,dx:0,dy:0};
+
+function spawnCar(){
+ enemies=[];
+ let count=car===4?5:(1+Math.floor(Math.random()*3));
+ for(let i=0;i<count;i++){
+   enemies.push({
+      x:300+Math.random()*(c.width-380),
+      y:80+Math.random()*(c.height-160),
+      w:24,h:24,
+      hp:car===4?40:20
+   });
+ }
+ player.x=120;
+ player.y=c.height/2;
+}
+
+spawnCar();
+
+c.addEventListener("touchstart",e=>{
+ let t=e.touches[0];
+ if(t.clientX<c.width*0.45){
+   joy.active=true; joy.sx=t.clientX; joy.sy=t.clientY;
+ }else{
+   attacking=true;
+   setTimeout(()=>attacking=false,180);
+ }
+});
+
+c.addEventListener("touchmove",e=>{
+ if(!joy.active)return;
+ let t=e.touches[0];
+ joy.dx=t.clientX-joy.sx;
+ joy.dy=t.clientY-joy.sy;
+});
+
+c.addEventListener("touchend",()=>{
+ joy.active=false;
+ joy.dx=joy.dy=0;
+});
+
+function rects(a,b){
+ return a.x<a.x+a.w &&
+        a.x+b.w>b.x &&
+        a.y+b.h>b.y &&
+        a.y<a.y+a.h &&
+        a.x < b.x+b.w &&
+        a.x+a.w > b.x &&
+        a.y < b.y+b.h &&
+        a.y+a.h > b.y;
+}
+
+function show(text,restart=false){
+ let m=document.getElementById("msg");
+ m.style.display="block";
+ m.innerHTML="<h2>"+text+"</h2>"+
+ (restart?'<button onclick="location.reload()">Restart</button>':'');
+}
+
+function update(){
+
+ if(gameOver)return;
+
+ if(joy.active){
+   let mag=Math.hypot(joy.dx,joy.dy);
+   if(mag>5){
+      player.x+=joy.dx/mag*player.speed;
+      player.y+=joy.dy/mag*player.speed;
+   }
+ }
+
+ player.x=Math.max(10,Math.min(c.width-player.w-10,player.x));
+ player.y=Math.max(10,Math.min(c.height-player.h-10,player.y));
+
+ for(let i=enemies.length-1;i>=0;i--){
+   let e=enemies[i];
+
+   let dx=player.x-e.x;
+   let dy=player.y-e.y;
+   let d=Math.hypot(dx,dy);
+
+   if(d<220){
+      e.x+=dx/d*0.8;
+      e.y+=dy/d*0.8;
+   }
+
+   if(rects(player,e)){
+      player.hp-=0.08;
+   }
+
+   if(attacking && d<70){
+      e.hp-=2.5;
+      if(e.hp<=0) enemies.splice(i,1);
+   }
+ }
+
+ if(player.hp<=0){
+   gameOver=true;
+   show("You were captured!",true);
+ }
+
+ if(enemies.length===0 && player.x>c.width-80){
+   car++;
+   if(car>maxCars){
+      gameOver=true;
+      show("Train Heist Complete! 🚂💰",true);
+   }else{
+      spawnCar();
+   }
+ }
+
+ document.getElementById("car").textContent=Math.min(car,maxCars);
+ document.getElementById("hp").textContent=Math.floor(player.hp);
+}
+
+function draw(){
+ ctx.clearRect(0,0,c.width,c.height);
+
+ ctx.fillStyle="#666";
+ ctx.fillRect(40,40,c.width-80,c.height-80);
+
+ ctx.strokeStyle="#999";
+ ctx.lineWidth=5;
+ ctx.strokeRect(40,40,c.width-80,c.height-80);
+
+ ctx.fillStyle="#8b5a2b";
+ for(let i=0;i<6;i++){
+   ctx.fillRect(150+i*120,50,40,30);
+   ctx.fillRect(150+i*120,c.height-80,40,30);
+ }
+
+ ctx.fillStyle="gold";
+ ctx.fillRect(c.width-60,c.height/2-40,20,80);
+
+ ctx.fillStyle=attacking?"#7ee787":"#4ea1ff";
+ ctx.fillRect(player.x,player.y,player.w,player.h);
+
+ ctx.fillStyle="#ff4d4d";
+ enemies.forEach(e=>{
+   ctx.fillRect(e.x,e.y,e.w,e.h);
+ });
+
+ if(joy.active){
+   ctx.strokeStyle="white";
+   ctx.beginPath();
+   ctx.arc(joy.sx,joy.sy,40,0,Math.PI*2);
+   ctx.stroke();
+
+   ctx.beginPath();
+   ctx.arc(joy.sx+joy.dx,joy.sy+joy.dy,18,0,Math.PI*2);
+   ctx.stroke();
+ }
+}
+
+function loop(){
+ update();
+ draw();
+ requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
